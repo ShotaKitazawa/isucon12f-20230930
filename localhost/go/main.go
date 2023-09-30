@@ -469,10 +469,6 @@ func (h *Handler) obtainPresent(tx *sqlx.Tx, userID int64, requestAt int64) ([]*
 			CreatedAt:      requestAt,
 			UpdatedAt:      requestAt,
 		}
-		query = "INSERT INTO user_presents(id, user_id, sent_at, item_type, item_id, amount, present_message, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-		if _, err := tx.Exec(query, up.ID, up.UserID, up.SentAt, up.ItemType, up.ItemID, up.Amount, up.PresentMessage, up.CreatedAt, up.UpdatedAt); err != nil {
-			return nil, err
-		}
 
 		phID, err := h.generateID()
 		if err != nil {
@@ -500,6 +496,20 @@ func (h *Handler) obtainPresent(tx *sqlx.Tx, userID int64, requestAt int64) ([]*
 		}
 
 		obtainPresents = append(obtainPresents, up)
+	}
+
+	if len(obtainPresents) != 0 {
+		// bulk insert
+		userPresentInsertQuery := "INSERT INTO user_presents(id, user_id, sent_at, item_type, item_id, amount, present_message, created_at, updated_at) VALUES"
+		args := make([]any, 0, len(obtainPresents)*9)
+		for _, up := range obtainPresents {
+			userPresentInsertQuery += "(?, ?, ?, ?, ?, ?, ?, ?, ?),"
+			args = append(args, up.ID, up.UserID, up.SentAt, up.ItemType, up.ItemID, up.Amount, up.PresentMessage, up.CreatedAt, up.UpdatedAt)
+		}
+		userPresentInsertQuery = userPresentInsertQuery[:len(userPresentInsertQuery)-1]
+		if _, err := tx.Exec(userPresentInsertQuery, args...); err != nil {
+			return nil, err
+		}
 	}
 	return obtainPresents, nil
 }
