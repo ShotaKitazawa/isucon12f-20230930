@@ -188,7 +188,7 @@ func (h *Handler) apiMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 }
 
 var (
-	cacheSession      map[int64]*Session //key: userID
+	cacheSession      map[int64]*Session = make(map[int64]*Session) //key: userID
 	cacheSessionMutex sync.RWMutex
 )
 
