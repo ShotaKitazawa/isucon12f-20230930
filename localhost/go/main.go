@@ -1001,6 +1001,8 @@ func (h *Handler) createUser(c echo.Context) error {
 	}
 
 	var dbx *sqlx.DB
+	fmt.Println(uID)
+	fmt.Println(uID % 10)
 	switch uID % 10 {
 	case 0, 1, 2:
 		dbx = h.db01
