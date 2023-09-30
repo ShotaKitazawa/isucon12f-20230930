@@ -1406,34 +1406,38 @@ func (h *Handler) listItem(c echo.Context) error {
 	}
 
 	// アイテムの強化に使うためのワンタイムトークンを発行
-	query = "UPDATE user_one_time_tokens SET deleted_at=? WHERE user_id=? AND deleted_at IS NULL"
-	if _, err = h.DB.Exec(query, requestAt, userID); err != nil {
-		return errorResponse(c, http.StatusInternalServerError, err)
-	}
-	tID, err := h.generateID()
-	if err != nil {
+	//query = "UPDATE user_one_time_tokens SET deleted_at=? WHERE user_id=? AND deleted_at IS NULL"
+	//if _, err = h.DB.Exec(query, requestAt, userID); err != nil {
+	//	return errorResponse(c, http.StatusInternalServerError, err)
+	//}
+	//tID, err := h.generateID()
+	//if err != nil {
+	if _, err := h.generateID(); err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
 	tk, err := generateUUID()
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
-	token := &UserOneTimeToken{
-		ID:        tID,
-		UserID:    userID,
-		Token:     tk,
-		TokenType: 2,
-		CreatedAt: requestAt,
-		UpdatedAt: requestAt,
-		ExpiredAt: requestAt + 600,
-	}
-	query = "INSERT INTO user_one_time_tokens(id, user_id, token, token_type, created_at, updated_at, expired_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-	if _, err = h.DB.Exec(query, token.ID, token.UserID, token.Token, token.TokenType, token.CreatedAt, token.UpdatedAt, token.ExpiredAt); err != nil {
-		return errorResponse(c, http.StatusInternalServerError, err)
-	}
+	//token := &UserOneTimeToken{
+	//	ID:        tID,
+	//	UserID:    userID,
+	//	Token:     tk,
+	//	TokenType: 2,
+	//	CreatedAt: requestAt,
+	//	UpdatedAt: requestAt,
+	//	ExpiredAt: requestAt + 600,
+	//}
+	//query = "INSERT INTO user_one_time_tokens(id, user_id, token, token_type, created_at, updated_at, expired_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	//if _, err = h.DB.Exec(query, token.ID, token.UserID, token.Token, token.TokenType, token.CreatedAt, token.UpdatedAt, token.ExpiredAt); err != nil {
+	//	return errorResponse(c, http.StatusInternalServerError, err)
+	//}
+	oneTimeTokenCache2Mutex.Lock()
+	oneTimeTokenCache2[tk] = requestAt + 600
+	oneTimeTokenCache2Mutex.Unlock()
 
 	return successResponse(c, &ListItemResponse{
-		OneTimeToken: token.Token,
+		OneTimeToken: tk,
 		Items:        itemList,
 		User:         user,
 		Cards:        cardList,
@@ -1472,7 +1476,7 @@ func (h *Handler) addExpToCard(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, ErrGetRequestTime)
 	}
 
-	if err = h.checkOneTimeToken(req.OneTimeToken, 2, requestAt); err != nil {
+	if err = h.checkOneTimeTokenCache(req.OneTimeToken, 2, requestAt); err != nil {
 		if err == ErrInvalidToken {
 			return errorResponse(c, http.StatusBadRequest, err)
 		}
