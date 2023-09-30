@@ -1290,7 +1290,7 @@ func (h *Handler) receivePresent(c echo.Context) error {
 
 		obtainPresent[i].UpdatedAt = requestAt
 		obtainPresent[i].DeletedAt = &requestAt
-		ids.append(ids, obtainPresent[i].ID)
+		ids = append(ids, obtainPresent[i].ID)
 	}
 
 	{
@@ -1299,7 +1299,10 @@ func (h *Handler) receivePresent(c echo.Context) error {
 		if err != nil {
 			return errorResponse(c, http.StatusBadRequest, err)
 		}
-		if _, err := tx.Exec(query, requestAt, requestAt, params...); err != nil {
+		tmp := make([]interface{}, 0, len(params)+2)
+		tmp = append(tmp, requestAt, requestAt)
+		tmp = append(tmp, params...)
+		if _, err := tx.Exec(query, tmp...); err != nil {
 			return errorResponse(c, http.StatusInternalServerError, err)
 		}
 	}
