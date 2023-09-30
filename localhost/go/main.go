@@ -51,6 +51,18 @@ type Handler struct {
 	DB *sqlx.DB
 }
 
+func init() {
+	hostname, err := os.Hostname()
+	if err != nil {
+		panic(err)
+	}
+	magicNumber, err := strconv.Atoi(hostname[len(hostname)-1:])
+	if err != nil {
+		panic(err)
+	}
+	lastInsertID = int64(100000000000*magicNumber + 1)
+}
+
 func main() {
 	go http.ListenAndServe(":6060", nil)
 
@@ -2103,7 +2115,8 @@ var (
 	// MEMO:
 	// 連番でなくてok
 	// 複数台にするときは 200000000001 300000000001 などわける
-	lastInsertID      int64      = 100000000001 // 参照するときは LastInsertIDIncrement() から
+	//lastInsertID      int64      = 100000000001 // 参照するときは LastInsertIDIncrement() から
+	lastInsertID      int64      // 参照するときは LastInsertIDIncrement() から
 	lastInsertIDMutex sync.Mutex = sync.Mutex{}
 
 	oneTimeTokenCache1      = make(map[string]int64)
