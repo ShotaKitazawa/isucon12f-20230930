@@ -42,7 +42,7 @@ hosts:
       if [ -f "/pprof/{{.Git.Revision}}/$PPROF_FILENAME" ]; then
         /home/isucon/local/golang/bin/go tool pprof -top -cum /pprof/{{.Git.Revision}}/$PPROF_FILENAME > /profile/{{.Git.Revision}}/pprof_top_cum;
       fi;
-      cat "{{.Env.ACCESSLOG_PATH}}" | alp ltsv -r --sort sum > /profile/{{.Git.Revision}}/accesslog;
+      cat "{{.Env.ACCESSLOG_PATH}}" | alp ltsv -m "/user/\d+/gacha/draw/\d+/\d+,/user/\d+/present/receive,/user/\d+/gacha/index,/user/\d+/reward,/user/\d+/present/index/\d+,/user/\d+/home,/user/\d+/card,/user/\d+/item,/admin/user/\d+/ban,/admin/user/\d+" -r --sort sum > /profile/{{.Git.Revision}}/accesslog;
       cat "{{.Env.SLOWLOG_PATH}}" | docker run -i --rm matsuu/pt-query-digest > /profile/{{.Git.Revision}}/slowlog;
 
 - host: 192.168.0.12
