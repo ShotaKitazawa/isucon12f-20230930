@@ -33,7 +33,7 @@ mysqlx-bind-address	= 127.0.0.1
 #
 # * Fine Tuning
 #
-key_buffer_size		= 16M
+#key_buffer_size		= 16M
 # max_allowed_packet	= 64M
 # thread_stack		= 256K
 
@@ -81,3 +81,43 @@ log-queries-not-using-indexes = 1
 max_binlog_size   = 100M
 # binlog_do_db		= include_database_name
 # binlog_ignore_db	= include_database_name
+
+
+
+## Common
+max_connections = 1000
+max_connect_errors = 10
+max_allowed_packet = 8M
+max_heap_table_size = 16M
+back_log = 50
+binlog_cache_size = 4M
+open_files_limit = 65535
+key_buffer_size = 256M
+
+## threadBuffers
+sort_buffer_size = 2M
+read_buffer_size = 2M
+join_buffer_size = 512K
+read_rnd_buffer_size = 1M
+
+## queryCache
+query_cache_limit = 2M
+query_cache_size = 64M
+
+## threadCache
+thread_cache_size = 160
+
+
+### InnoDB options ###
+# https://dev.mysql.com/doc/refman/8.0/ja/innodb-parameters.html
+
+innodb_buffer_pool_size = 1G
+#innodb_page_size = 32KB
+innodb_flush_log_at_trx_commit = 0
+innodb_flush_method = O_DIRECT
+innodb_log_file_size = 256M
+innodb_log_buffer_size = 8M
+#innodb_additional_mem_pool_size = 8M
+innodb_doublewrite = off
+innodb_autoinc_lock_mode = 2
+innodb_sort_buffer_size = 2M
