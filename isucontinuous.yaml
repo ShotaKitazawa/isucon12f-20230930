@@ -1,0 +1,65 @@
+setup:
+  docker:
+    netdata:
+      version: latest
+      public_port: 19999
+  alp:
+    version: v1.0.8
+slack:
+  default_channel_id: "C6FC55B6W"
+hosts:
+- host: localhost
+  user: &user root
+  key: &key /root/.ssh/id_ed25519
+  deploy: &deploy
+    slack_channel_id: C6DB4LG6B
+    pre_command: >-
+      rm -f "{{.Env.ACCESSLOG_PATH}}";
+      rm -f "{{.Env.SLOWLOG_PATH}}";
+    post_command: >-
+      sudo systemctl restart mysql nginx && sudo systemctl restart isuconquest.go.service
+    targets:
+    - src: nginx
+      target: /etc/nginx
+    - src: mysql
+      target: /etc/mysql
+    - src: go
+      target: /home/isucon/webapp/go
+      compile: /home/isucon/local/golang/bin/go build .
+  profiling: &profiling
+    command: >-
+      PPROF_TMPDIR=/pprof/{{.Git.Revision}} /home/isucon/local/golang/bin/go tool pprof /home/isucon/webapp/go/isuconquest http://localhost:6060/debug/pprof/profile?seconds=90
+    #command: >-
+    #  PPROF_TMPDIR=/pprof/{{.Git.Revision}} /home/isucon/local/go/bin/go tool pprof /home/isucon/webapp/go/isucondition http://localhost:6060/debug/fgprof?seconds=90
+  after_bench: &after_bench
+    #slack_channel_id: ""
+    target: /profile/{{.Git.Revision}}/
+    command: >-
+      mkdir -p /profile/{{.Git.Revision}};
+      export PPROF_FILENAME=$(ls /pprof/{{.Git.Revision}}/ -tr | tail -n1);
+      if [ -f "/pprof/{{.Git.Revision}}/$PPROF_FILENAME" ]; then
+        /home/isucon/local/golang/bin/go tool pprof -top -cum /pprof/{{.Git.Revision}}/$PPROF_FILENAME > /profile/{{.Git.Revision}}/pprof_top_cum;
+      fi;
+      cat "{{.Env.ACCESSLOG_PATH}}" | alp ltsv -r --sort sum > /profile/{{.Git.Revision}}/accesslog;
+      cat "{{.Env.SLOWLOG_PATH}}" | docker run -i --rm matsuu/pt-query-digest > /profile/{{.Git.Revision}}/slowlog;
+
+- host: 192.168.0.12
+  user: *user
+  key: *key
+  deploy: *deploy
+  profiling: *profiling
+  after_bench: *after_bench
+
+- host: 192.168.0.13
+  user: *user
+  key: *key
+  deploy: *deploy
+  profiling: *profiling
+  after_bench: *after_bench
+
+- host: 192.168.0.14
+  user: *user
+  key: *key
+  deploy: *deploy
+  profiling: *profiling
+  after_bench: *after_bench
