@@ -11,6 +11,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/sync/errgroup"
 )
 
 // //////////////////////////////////////
@@ -229,12 +230,11 @@ type AdminListMasterResponse struct {
 // adminUpdateMaster マスタデータ更新
 // PUT /admin/master
 func (h *Handler) adminUpdateMaster(c echo.Context) error {
-	wg := &sync.WaitGroup{}
-	for i := range h.dbxList {
+	eg := errgroup.Group{}
+	for i := range h.DBList {
 		i := i
-		dbx := h.dbxList[i]
-		wg.Add(1)
-		go func() {
+		dbx := h.DBList[i]
+		eg.Go(func() error {
 			tx, err := h.DB.Beginx()
 			if err != nil {
 				return errorResponse(c, http.StatusInternalServerError, err)
@@ -500,10 +500,13 @@ func (h *Handler) adminUpdateMaster(c echo.Context) error {
 			if err != nil {
 				return errorResponse(c, http.StatusInternalServerError, err)
 			}
-			wg.Done()
-		}()
+
+			return nil
+		})
 	}
-	wg.Wait()
+	if err := eg.Wait(); err != nil {
+		return err
+	}
 
 	return successResponse(c, &AdminUpdateMasterResponse{
 		VersionMaster: activeMaster,
