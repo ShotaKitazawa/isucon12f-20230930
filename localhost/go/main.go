@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"go/token"
 	"io"
 	"math"
 	"math/rand"
@@ -273,9 +272,9 @@ func (h *Handler) checkOneTimeTokenCache(token string, tokenType int, requestAt 
 		if expiredAt < requestAt {
 			return ErrInvalidToken
 		}
-		lastInsertIDMutex.Lock()
+		oneTimeTokenCache1Mutex.Lock()
 		oneTimeTokenCache1[token] = 1
-		lastInsertIDMutex.UnLock()
+		oneTimeTokenCache1Mutex.UnLock()
 		return nil
 	} else if tokenType == 2 {
 		expiredAt, ok := oneTimeTokenCache2[token]
@@ -285,9 +284,9 @@ func (h *Handler) checkOneTimeTokenCache(token string, tokenType int, requestAt 
 		if expiredAt < requestAt {
 			return ErrInvalidToken
 		}
-		lastInsertIDMutex.Lock()
+		oneTimeTokenCache2Mutex.Lock()
 		oneTimeTokenCache2[token] = 1
-		lastInsertIDMutex.UnLock()
+		oneTimeTokenCache2Mutex.UnLock()
 		return nil
 	}
 	panic("unknown tokenType")
@@ -967,10 +966,10 @@ type LoginResponse struct {
 // listGacha ガチャ一覧
 // GET /user/{userID}/gacha/index
 func (h *Handler) listGacha(c echo.Context) error {
-	userID, err := getUserID(c)
-	if err != nil {
-		return errorResponse(c, http.StatusBadRequest, err)
-	}
+	//userID, err := getUserID(c)
+	//if err != nil {
+	//	return errorResponse(c, http.StatusBadRequest, err)
+	//}
 
 	requestAt, err := getRequestTime(c)
 	if err != nil {
@@ -1014,8 +1013,9 @@ func (h *Handler) listGacha(c echo.Context) error {
 	//if _, err = h.DB.Exec(query, requestAt, userID); err != nil {
 	//	return errorResponse(c, http.StatusInternalServerError, err)
 	//}
-	tID, err := h.generateID()
-	if err != nil {
+	//tID, err := h.generateID()
+	//if err != nil {
+	if _, err := h.generateID(); err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
 	tk, err := generateUUID()
@@ -1040,7 +1040,7 @@ func (h *Handler) listGacha(c echo.Context) error {
 	oneTimeTokenCache1Mutex.UnLock()
 
 	return successResponse(c, &ListGachaResponse{
-		OneTimeToken: token.Token,
+		OneTimeToken: tk,
 		Gachas:       gachaDataList,
 	})
 }
@@ -1907,9 +1907,9 @@ var (
 	lastInsertIDMutex sync.Mutex = sync.Mutex{}
 
 	oneTimeTokenCache1      = make(map[string]int64)
-	oneTimeTokenCache1Mutex = sync.Mutex{}
+	oneTimeTokenCache1Mutex sync.Mutex
 	oneTimeTokenCache2      = make(map[string]int64)
-	oneTimeTokenCache2Mutex = sync.Mutex{}
+	oneTimeTokenCache2Mutex sync.Mutex
 )
 
 // lastInsertIDIncrement LastInsertIDをインクリメントする
