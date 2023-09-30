@@ -500,9 +500,9 @@ func (h *Handler) adminUpdateMaster(c echo.Context) error {
 			if err != nil {
 				return errorResponse(c, http.StatusInternalServerError, err)
 			}
-        	wg.Done()
-		}
-    }()
+			wg.Done()
+		}()
+	}
 	wg.Wait()
 
 	return successResponse(c, &AdminUpdateMasterResponse{
