@@ -1295,14 +1295,11 @@ func (h *Handler) receivePresent(c echo.Context) error {
 
 	{
 		query := "UPDATE user_presents SET deleted_at=?, updated_at=? WHERE id IN (?)"
-		query, params, err := sqlx.In(query, ids)
+		query, params, err := sqlx.In(query, requestAt, requestAt, ids)
 		if err != nil {
 			return errorResponse(c, http.StatusBadRequest, err)
 		}
-		tmp := make([]interface{}, 0, len(params)+2)
-		tmp = append(tmp, requestAt, requestAt)
-		tmp = append(tmp, params...)
-		if _, err := tx.Exec(query, tmp...); err != nil {
+		if _, err := tx.Exec(query, params...); err != nil {
 			return errorResponse(c, http.StatusInternalServerError, err)
 		}
 	}
