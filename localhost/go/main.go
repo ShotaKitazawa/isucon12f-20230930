@@ -439,6 +439,7 @@ func (h *Handler) obtainPresent(tx *sqlx.Tx, userID int64, requestAt int64) ([]*
 
 	obtainPresents := make([]*UserPresent, 0)
 	presentAllHistory := make([]*UserPresentAllReceivedHistory, 0)
+	insertUserPresentAllReceivedHistory := make([]*UserPresentAllReceivedHistory, 0)
 	allReceivedHistoryQuery := "SELECT * FROM user_present_all_received_history WHERE user_id=?"
 	if err := tx.Select(&presentAllHistory, allReceivedHistoryQuery, userID); err != nil {
 		return nil, err
@@ -458,7 +459,11 @@ func (h *Handler) obtainPresent(tx *sqlx.Tx, userID int64, requestAt int64) ([]*
 		if err != nil {
 			return nil, err
 		}
-		up := &UserPresent{
+		phID, err := h.generateID()
+		if err != nil {
+			return nil, err
+		}
+		obtainPresents = append(obtainPresents, &UserPresent{
 			ID:             pID,
 			UserID:         userID,
 			SentAt:         requestAt,
@@ -468,34 +473,15 @@ func (h *Handler) obtainPresent(tx *sqlx.Tx, userID int64, requestAt int64) ([]*
 			PresentMessage: np.PresentMessage,
 			CreatedAt:      requestAt,
 			UpdatedAt:      requestAt,
-		}
-
-		phID, err := h.generateID()
-		if err != nil {
-			return nil, err
-		}
-		history := &UserPresentAllReceivedHistory{
+		})
+		insertUserPresentAllReceivedHistory = append(insertUserPresentAllReceivedHistory, &UserPresentAllReceivedHistory{
 			ID:           phID,
 			UserID:       userID,
 			PresentAllID: np.ID,
 			ReceivedAt:   requestAt,
 			CreatedAt:    requestAt,
 			UpdatedAt:    requestAt,
-		}
-		query = "INSERT INTO user_present_all_received_history(id, user_id, present_all_id, received_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
-		if _, err := tx.Exec(
-			query,
-			history.ID,
-			history.UserID,
-			history.PresentAllID,
-			history.ReceivedAt,
-			history.CreatedAt,
-			history.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-
-		obtainPresents = append(obtainPresents, up)
+		})
 	}
 
 	if len(obtainPresents) != 0 {
@@ -508,6 +494,19 @@ func (h *Handler) obtainPresent(tx *sqlx.Tx, userID int64, requestAt int64) ([]*
 		}
 		userPresentInsertQuery = userPresentInsertQuery[:len(userPresentInsertQuery)-1]
 		if _, err := tx.Exec(userPresentInsertQuery, args...); err != nil {
+			return nil, err
+		}
+	}
+	if len(insertUserPresentAllReceivedHistory) != 0 {
+		// bulk insert
+		userPresentAllReceivedHistoryInsertQuery := "INSERT INTO user_present_all_received_history(id, user_id, present_all_id, received_at, created_at, updated_at) VALUES"
+		args := make([]any, 0, len(insertUserPresentAllReceivedHistory)*6)
+		for _, up := range insertUserPresentAllReceivedHistory {
+			userPresentAllReceivedHistoryInsertQuery += "(?, ?, ?, ?, ?, ?),"
+			args = append(args, up.ID, up.UserID, up.PresentAllID, up.ReceivedAt, up.CreatedAt, up.UpdatedAt)
+		}
+		userPresentAllReceivedHistoryInsertQuery = userPresentAllReceivedHistoryInsertQuery[:len(userPresentAllReceivedHistoryInsertQuery)-1]
+		if _, err := tx.Exec(userPresentAllReceivedHistoryInsertQuery, args...); err != nil {
 			return nil, err
 		}
 	}
