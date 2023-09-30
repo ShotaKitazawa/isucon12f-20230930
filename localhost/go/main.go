@@ -1282,6 +1282,7 @@ func (h *Handler) receivePresent(c echo.Context) error {
 	defer tx.Rollback() //nolint:errcheck
 
 	// 配布処理
+	ids := make([]int64, 0, len(obtainPresent))
 	for i := range obtainPresent {
 		if obtainPresent[i].DeletedAt != nil {
 			return errorResponse(c, http.StatusInternalServerError, fmt.Errorf("received present"))
@@ -1289,13 +1290,22 @@ func (h *Handler) receivePresent(c echo.Context) error {
 
 		obtainPresent[i].UpdatedAt = requestAt
 		obtainPresent[i].DeletedAt = &requestAt
-		v := obtainPresent[i]
-		query = "UPDATE user_presents SET deleted_at=?, updated_at=? WHERE id=?"
-		_, err := tx.Exec(query, requestAt, requestAt, v.ID)
+		ids.append(ids, obtainPresent[i].ID)
+	}
+
+	{
+		query := "UPDATE user_presents SET deleted_at=?, updated_at=? WHERE id IN (?)"
+		query, params, err := sqlx.In(query, ids)
 		if err != nil {
+			return errorResponse(c, http.StatusBadRequest, err)
+		}
+		if _, err := tx.Exec(query, requestAt, requestAt, params...); err != nil {
 			return errorResponse(c, http.StatusInternalServerError, err)
 		}
+	}
 
+	for i := range obtainPresent {
+		v := obtainPresent[i]
 		_, _, _, err = h.obtainItem(tx, v.UserID, v.ItemID, v.ItemType, int64(v.Amount), requestAt)
 		if err != nil {
 			if err == ErrUserNotFound || err == ErrItemNotFound {
