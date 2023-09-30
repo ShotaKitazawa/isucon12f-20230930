@@ -186,7 +186,7 @@ func connectDB(host string, batch bool) (*sqlx.DB, error) {
 		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&loc=%s&multiStatements=%t&interpolateParams=true",
 		getEnv("ISUCON_DB_USER", "isucon"),
 		getEnv("ISUCON_DB_PASSWORD", "isucon"),
-		getEnv("ISUCON_DB_HOST", host),
+		host,
 		getEnv("ISUCON_DB_PORT", "3306"),
 		getEnv("ISUCON_DB_NAME", "isucon"),
 		"Asia%2FTokyo",
@@ -1001,8 +1001,6 @@ func (h *Handler) createUser(c echo.Context) error {
 	}
 
 	var dbx *sqlx.DB
-	fmt.Println(uID)
-	fmt.Println(uID % 10)
 	switch uID % 10 {
 	case 0, 1, 2:
 		dbx = h.db01
