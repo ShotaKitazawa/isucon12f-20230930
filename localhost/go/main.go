@@ -48,7 +48,7 @@ const (
 )
 
 type Handler struct {
-	DB *sqlx.DB
+	DB     *sqlx.DB
 	DBList []*sqlx.DB
 }
 
@@ -81,8 +81,8 @@ func main() {
 
 	e.Server.Addr = fmt.Sprintf(":%v", "8080")
 	h := &Handler{
-		DB: dbx,
-		DBList: 
+		DB:     dbx,
+		DBList: dbxList,
 	}
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{}))
