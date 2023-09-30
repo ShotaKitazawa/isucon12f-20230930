@@ -115,7 +115,7 @@ func main() {
 // connectDB DBに接続する
 func connectDB(batch bool) (*sqlx.DB, error) {
 	dsn := fmt.Sprintf(
-		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&loc=%s&multiStatements=%t",
+		"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&loc=%s&multiStatements=%t&interpolateParams=true",
 		getEnv("ISUCON_DB_USER", "isucon"),
 		getEnv("ISUCON_DB_PASSWORD", "isucon"),
 		getEnv("ISUCON_DB_HOST", "127.0.0.1"),
@@ -1303,6 +1303,7 @@ func (h *Handler) receivePresent(c echo.Context) error {
 	defer tx.Rollback() //nolint:errcheck
 
 	// 配布処理
+	ids := make([]int64, 0, len(obtainPresent))
 	for i := range obtainPresent {
 		if obtainPresent[i].DeletedAt != nil {
 			return errorResponse(c, http.StatusInternalServerError, fmt.Errorf("received present"))
@@ -1310,13 +1311,22 @@ func (h *Handler) receivePresent(c echo.Context) error {
 
 		obtainPresent[i].UpdatedAt = requestAt
 		obtainPresent[i].DeletedAt = &requestAt
-		v := obtainPresent[i]
-		query = "UPDATE user_presents SET deleted_at=?, updated_at=? WHERE id=?"
-		_, err := tx.Exec(query, requestAt, requestAt, v.ID)
+		ids = append(ids, obtainPresent[i].ID)
+	}
+
+	{
+		query := "UPDATE user_presents SET deleted_at=?, updated_at=? WHERE id IN (?)"
+		query, params, err := sqlx.In(query, requestAt, requestAt, ids)
 		if err != nil {
+			return errorResponse(c, http.StatusBadRequest, err)
+		}
+		if _, err := tx.Exec(query, params...); err != nil {
 			return errorResponse(c, http.StatusInternalServerError, err)
 		}
+	}
 
+	for i := range obtainPresent {
+		v := obtainPresent[i]
 		_, _, _, err = h.obtainItem(tx, v.UserID, v.ItemID, v.ItemType, int64(v.Amount), requestAt)
 		if err != nil {
 			if err == ErrUserNotFound || err == ErrItemNotFound {

@@ -14,6 +14,23 @@ mysql -u"$ISUCON_DB_USER" \
 		--port "$ISUCON_DB_PORT" \
 		"$ISUCON_DB_NAME" < 3_schema_exclude_user_presents.sql
 
+# ADD INDEX
+mysql -u"$ISUCON_DB_USER" \
+		-p"$ISUCON_DB_PASSWORD" \
+		--host "$ISUCON_DB_HOST" \
+		--port "$ISUCON_DB_PORT" \
+		"$ISUCON_DB_NAME" -e \
+    "alter table user_present_all_received_history add index user_id_present_all_id(user_id, present_all_id);"
+
+#mysql -u"$ISUCON_DB_USER" \
+#		-p"$ISUCON_DB_PASSWORD" \
+#		--host "$ISUCON_DB_HOST" \
+#		--port "$ISUCON_DB_PORT" \
+#		"$ISUCON_DB_NAME" -e \
+#    "alter table user_presents add index user_id_deleted_at_created_at_desc_index(user_id, deleted_at, created_at desc);"
+
+
+
 mysql -u"$ISUCON_DB_USER" \
 		-p"$ISUCON_DB_PASSWORD" \
 		--host "$ISUCON_DB_HOST" \
@@ -29,14 +46,6 @@ echo "delete from user_presents where id > 100000000000" | mysql -u"$ISUCON_DB_U
 DIR=`mysql -u"$ISUCON_DB_USER" -p"$ISUCON_DB_PASSWORD" -h "$ISUCON_DB_HOST" -Ns -e "show variables like 'secure_file_priv'" | cut -f2`
 SECURE_DIR=${DIR:-/var/lib/mysql-files/}
 
-
-# ADD INDEX
-mysql -u"$ISUCON_DB_USER" \
-		-p"$ISUCON_DB_PASSWORD" \
-		--host "$ISUCON_DB_HOST" \
-		--port "$ISUCON_DB_PORT" \
-		"$ISUCON_DB_NAME" -e \
-    "alter table user_present_all_received_history add index user_id_present_all_id(user_id, present_all_id);"
 
 # Load data
 
