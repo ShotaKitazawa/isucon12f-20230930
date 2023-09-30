@@ -313,6 +313,7 @@ func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 		userSession, ok := cacheSession[userID]
 		cacheSessionMutex.RUnlock()
 		if !ok || sessID != userSession.SessionID {
+			userSession = new(Session)
 			query := "SELECT * FROM user_sessions WHERE session_id=? AND deleted_at IS NULL"
 			if err := h.sharedDB.Get(userSession, query, sessID); err != nil {
 				if err == sql.ErrNoRows {
