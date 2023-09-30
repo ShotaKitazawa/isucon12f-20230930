@@ -278,19 +278,15 @@ func (h *Handler) checkViewerID(userID int64, viewerID string) error {
 
 // checkBan BANされているユーザでかを確認する
 func (h *Handler) checkBan(userID int64) (bool, error) {
-	cacheBanUsersMutex.RLock()
-	defer cacheBanUsersMutex.RUnlock()
-
-	_, banned := cacheBanUsers[int(userID)]
-	return banned, nil
-	//banUser := new(UserBan)
-	//query := "SELECT * FROM user_bans WHERE user_id=?"
-	//if err := h.DB.Get(banUser, query, userID); err != nil {
-	//	if err == sql.ErrNoRows {
-	//		return false, nil
-	//	}
-	//	return false, err
-	//}
+	banUser := new(UserBan)
+	query := "SELECT * FROM user_bans WHERE user_id=?"
+	if err := h.DB.Get(banUser, query, userID); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // getRequestTime リクエストを受けた時間をコンテキストからunix timeで取得する
@@ -633,18 +629,6 @@ func initialize(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
 
-	// restore BanUsers to memory
-	banUsers := new([]UserBan)
-	query := "SELECT * FROM user_bans"
-	if err := dbx.Select(banUsers, query); err != nil {
-		return err
-	}
-	cacheBanUsersMutex.Lock()
-	for _, bu := range *banUsers {
-		cacheBanUsers[int(bu.ID)] = struct{}{}
-	}
-	cacheBanUsersMutex.Unlock()
-
 	return successResponse(c, &InitializeResponse{
 		Language: "go",
 	})
@@ -826,11 +810,6 @@ type CreateUserResponse struct {
 	CreatedAt        int64            `json:"createdAt"`
 	UpdatedResources *UpdatedResource `json:"updatedResources"`
 }
-
-var (
-	cacheBanUsers      map[int]struct{} = make(map[int]struct{})
-	cacheBanUsersMutex sync.RWMutex
-)
 
 // login ログイン
 // POST /login

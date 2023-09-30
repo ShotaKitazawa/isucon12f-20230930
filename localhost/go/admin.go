@@ -608,10 +608,10 @@ func (h *Handler) adminBanUser(c echo.Context) error {
 		return errorResponse(c, http.StatusBadRequest, err)
 	}
 
-	//requestAt, err := getRequestTime(c)
-	//if err != nil {
-	//	return errorResponse(c, http.StatusInternalServerError, ErrGetRequestTime)
-	//}
+	requestAt, err := getRequestTime(c)
+	if err != nil {
+		return errorResponse(c, http.StatusInternalServerError, ErrGetRequestTime)
+	}
 
 	query := "SELECT * FROM users WHERE id=?"
 	user := new(User)
@@ -622,25 +622,18 @@ func (h *Handler) adminBanUser(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
 
-	// banID, err := h.generateID()
-	// if err != nil {
-	// 	return errorResponse(c, http.StatusInternalServerError, err)
-	// }
-	// query = "INSERT user_bans(id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE updated_at = ?"
-	// if _, err = h.DB.Exec(query, banID, userID, requestAt, requestAt, requestAt); err != nil {
-	// 	return errorResponse(c, http.StatusInternalServerError, err)
-	// }
-	registerBan(int(userID))
+	banID, err := h.generateID()
+	if err != nil {
+		return errorResponse(c, http.StatusInternalServerError, err)
+	}
+	query = "INSERT user_bans(id, user_id, created_at, updated_at) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE updated_at = ?"
+	if _, err = h.DB.Exec(query, banID, userID, requestAt, requestAt, requestAt); err != nil {
+		return errorResponse(c, http.StatusInternalServerError, err)
+	}
 
 	return successResponse(c, &AdminBanUserResponse{
 		User: user,
 	})
-}
-
-func registerBan(userID int) {
-	cacheBanUsersMutex.Lock()
-	defer cacheBanUsersMutex.Unlock()
-	cacheBanUsers[userID] = struct{}{}
 }
 
 type AdminBanUserResponse struct {
@@ -648,7 +641,6 @@ type AdminBanUserResponse struct {
 }
 
 // hashPassword パスワードをハッシュ化する
-//
 //nolint:deadcode,unused
 func hashPassword(pw string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
