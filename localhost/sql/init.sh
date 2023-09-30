@@ -37,7 +37,6 @@ mysql -u"$ISUCON_DB_USER" \
 		--port "$ISUCON_DB_PORT" \
 		"$ISUCON_DB_NAME" -e \
     "alter table user_present_all_received_history add index user_id_present_all_id(user_id, present_all_id);"
-
 # Load data
 
 sudo cp 5_user_presents_not_receive_data.tsv ${SECURE_DIR}
