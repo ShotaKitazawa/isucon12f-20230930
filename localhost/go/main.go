@@ -274,7 +274,7 @@ func (h *Handler) checkOneTimeTokenCache(token string, tokenType int, requestAt 
 		}
 		oneTimeTokenCache1Mutex.Lock()
 		oneTimeTokenCache1[token] = 1
-		oneTimeTokenCache1Mutex.UnLock()
+		oneTimeTokenCache1Mutex.Unlock()
 		return nil
 	} else if tokenType == 2 {
 		expiredAt, ok := oneTimeTokenCache2[token]
@@ -286,7 +286,7 @@ func (h *Handler) checkOneTimeTokenCache(token string, tokenType int, requestAt 
 		}
 		oneTimeTokenCache2Mutex.Lock()
 		oneTimeTokenCache2[token] = 1
-		oneTimeTokenCache2Mutex.UnLock()
+		oneTimeTokenCache2Mutex.Unlock()
 		return nil
 	}
 	panic("unknown tokenType")
@@ -1037,7 +1037,7 @@ func (h *Handler) listGacha(c echo.Context) error {
 	//}
 	oneTimeTokenCache1Mutex.Lock()
 	oneTimeTokenCache1[tk] = requestAt + 600
-	oneTimeTokenCache1Mutex.UnLock()
+	oneTimeTokenCache1Mutex.Unlock()
 
 	return successResponse(c, &ListGachaResponse{
 		OneTimeToken: tk,
