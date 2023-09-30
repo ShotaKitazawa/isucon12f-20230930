@@ -724,10 +724,11 @@ func (h *Handler) obtainItem(tx *sqlx.Tx, userID, itemID int64, itemType int, ob
 // initialize 初期化処理
 // POST /initialize
 func initialize(c echo.Context) error {
-	eg, ctx := errgroup.WithContext(context.TODO())
+	eg, _ := errgroup.WithContext(context.TODO())
 	for i := 11; i <= 14; i++ {
+		i := i
 		eg.Go(func() error {
-			_, err := http.Post(fmt.Sprintf("http://192.168.0.%d/upload", i), "application/json", nil)
+			_, err := http.Post(fmt.Sprintf("http://192.168.0.%d/initialize_local", i), "application/json", nil)
 			if err != nil {
 				return err
 			}
