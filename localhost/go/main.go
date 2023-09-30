@@ -262,6 +262,36 @@ func (h *Handler) checkOneTimeToken(token string, tokenType int, requestAt int64
 	return nil
 }
 
+// checkOneTimeToken ワンタイムトークンの確認用middleware
+func (h *Handler) checkOneTimeTokenCache(token string, tokenType int, requestAt int64) error {
+	if tokenType == 1 {
+		expiredAt, ok := oneTimeTokenCache1[token]
+		if !ok {
+			return ErrInvalidToken
+		}
+		if expiredAt < requestAt {
+			return ErrInvalidToken
+		}
+		lastInsertIDMutex.Lock()
+		oneTimeTokenCache1[token] = 1
+		lastInsertIDMutex.UnLock()
+		return nil
+	else if tokenType == 2 {
+		expiredAt, ok := oneTimeTokenCache2[token]
+		if !ok {
+			return ErrInvalidToken
+		}
+		if expiredAt < requestAt {
+			return ErrInvalidToken
+		}
+		lastInsertIDMutex.Lock()
+		oneTimeTokenCache2[token] = 1
+		lastInsertIDMutex.UnLock()
+		return nil
+	}
+	panic("unknown tokenType")
+}
+
 // checkViewerID viewerIDとplatformの確認を行う
 func (h *Handler) checkViewerID(userID int64, viewerID string) error {
 	query := "SELECT * FROM user_devices WHERE user_id=? AND platform_id=?"
@@ -979,10 +1009,10 @@ func (h *Handler) listGacha(c echo.Context) error {
 	}
 
 	// ガチャ実行用のワンタイムトークンの発行
-	query = "UPDATE user_one_time_tokens SET deleted_at=? WHERE user_id=? AND deleted_at IS NULL"
-	if _, err = h.DB.Exec(query, requestAt, userID); err != nil {
-		return errorResponse(c, http.StatusInternalServerError, err)
-	}
+	//query = "UPDATE user_one_time_tokens SET deleted_at=? WHERE user_id=? AND deleted_at IS NULL"
+	//if _, err = h.DB.Exec(query, requestAt, userID); err != nil {
+	//	return errorResponse(c, http.StatusInternalServerError, err)
+	//}
 	tID, err := h.generateID()
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
@@ -991,19 +1021,22 @@ func (h *Handler) listGacha(c echo.Context) error {
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
-	token := &UserOneTimeToken{
-		ID:        tID,
-		UserID:    userID,
-		Token:     tk,
-		TokenType: 1,
-		CreatedAt: requestAt,
-		UpdatedAt: requestAt,
-		ExpiredAt: requestAt + 600,
-	}
-	query = "INSERT INTO user_one_time_tokens(id, user_id, token, token_type, created_at, updated_at, expired_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-	if _, err = h.DB.Exec(query, token.ID, token.UserID, token.Token, token.TokenType, token.CreatedAt, token.UpdatedAt, token.ExpiredAt); err != nil {
-		return errorResponse(c, http.StatusInternalServerError, err)
-	}
+	//token := &UserOneTimeToken{
+	//	ID:        tID,
+	//	UserID:    userID,
+	//	Token:     tk,
+	//	TokenType: 1,
+	//	CreatedAt: requestAt,
+	//	UpdatedAt: requestAt,
+	//	ExpiredAt: requestAt + 600,
+	//}
+	//query = "INSERT INTO user_one_time_tokens(id, user_id, token, token_type, created_at, updated_at, expired_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+	//if _, err = h.DB.Exec(query, token.ID, token.UserID, token.Token, token.TokenType, token.CreatedAt, token.UpdatedAt, token.ExpiredAt); err != nil {
+	//	return errorResponse(c, http.StatusInternalServerError, err)
+	//}
+	oneTimeTokenCache1Mutex.Lock()
+	oneTimeTokenCache1[tk] = requestAt + 600
+	oneTimeTokenCache1Mutex.UnLock()
 
 	return successResponse(c, &ListGachaResponse{
 		OneTimeToken: token.Token,
@@ -1053,7 +1086,7 @@ func (h *Handler) drawGacha(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, ErrGetRequestTime)
 	}
 
-	if err = h.checkOneTimeToken(req.OneTimeToken, 1, requestAt); err != nil {
+	if err = h.checkOneTimeTokenCache(req.OneTimeToken, 1, requestAt); err != nil {
 		if err == ErrInvalidToken {
 			return errorResponse(c, http.StatusBadRequest, err)
 		}
@@ -1871,6 +1904,11 @@ var (
 	// 複数台にするときは 200000000001 300000000001 などわける
 	lastInsertID      int64      = 100000000001 // 参照するときは LastInsertIDIncrement() から
 	lastInsertIDMutex sync.Mutex = sync.Mutex{}
+
+	oneTimeTokenCache1 = make(map[string]int64)
+	oneTimeTokenCache1Mutex = sync.Mutex{}
+	oneTimeTokenCache2 = make(map[string]int64)
+	oneTimeTokenCache2Mutex = sync.Mutex{}
 )
 
 // lastInsertIDIncrement LastInsertIDをインクリメントする
