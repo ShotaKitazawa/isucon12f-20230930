@@ -10,6 +10,7 @@ require (
 	github.com/labstack/echo/v4 v4.7.2
 	github.com/pkg/errors v0.9.1
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5
+	golang.org/x/sync v0.3.0
 )
 
 require (
