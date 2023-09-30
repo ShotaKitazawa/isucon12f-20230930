@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"go/token"
 	"io"
 	"math"
 	"math/rand"
@@ -276,7 +277,7 @@ func (h *Handler) checkOneTimeTokenCache(token string, tokenType int, requestAt 
 		oneTimeTokenCache1[token] = 1
 		lastInsertIDMutex.UnLock()
 		return nil
-	else if tokenType == 2 {
+	} else if tokenType == 2 {
 		expiredAt, ok := oneTimeTokenCache2[token]
 		if !ok {
 			return ErrInvalidToken
@@ -1905,9 +1906,9 @@ var (
 	lastInsertID      int64      = 100000000001 // 参照するときは LastInsertIDIncrement() から
 	lastInsertIDMutex sync.Mutex = sync.Mutex{}
 
-	oneTimeTokenCache1 = make(map[string]int64)
+	oneTimeTokenCache1      = make(map[string]int64)
 	oneTimeTokenCache1Mutex = sync.Mutex{}
-	oneTimeTokenCache2 = make(map[string]int64)
+	oneTimeTokenCache2      = make(map[string]int64)
 	oneTimeTokenCache2Mutex = sync.Mutex{}
 )
 
