@@ -233,9 +233,8 @@ func (h *Handler) adminUpdateMaster(c echo.Context) error {
 	var mu sync.Mutex
 	eg := errgroup.Group{}
 	activeMaster := new(VersionMaster)
-	for i := range h.DBList {
-		i := i
-		dbx := h.DBList[i]
+	for _, dbx := range h.DBList {
+		dbx := dbx
 		eg.Go(func() error {
 			tx, err := dbx.Beginx()
 			if err != nil {
