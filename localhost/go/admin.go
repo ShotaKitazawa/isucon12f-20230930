@@ -230,7 +230,7 @@ type AdminListMasterResponse struct {
 // PUT /admin/master
 func (h *Handler) adminUpdateMaster(c echo.Context) error {
 	wg := &sync.WaitGroup{}
-	for i in range h.dbxList {
+	for i := range h.dbxList {
 		i := i
 		dbx := h.dbxList[i]
 		wg.Add(1)
