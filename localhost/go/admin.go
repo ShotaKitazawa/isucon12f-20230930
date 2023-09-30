@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"database/sql"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -645,9 +646,20 @@ func (h *Handler) adminBanUser(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
 
+	if err := registerBan(int(userID)); err != nil {
+		return errorResponse(c, http.StatusInternalServerError, err)
+	}
+
 	return successResponse(c, &AdminBanUserResponse{
 		User: user,
 	})
+}
+
+func registerBan(userID int) error {
+	conn := pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("SET", fmt.Sprintf("banUsers_%d", userID), "x")
+	return err
 }
 
 type AdminBanUserResponse struct {
