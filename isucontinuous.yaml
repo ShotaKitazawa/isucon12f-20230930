@@ -23,6 +23,8 @@ hosts:
       target: /etc/nginx
     - src: mysql
       target: /etc/mysql
+    - src: sql
+      target: /home/isucon/webapp/sql
     - src: go
       target: /home/isucon/webapp/go
       compile: /home/isucon/local/golang/bin/go build -o isuconquest .
