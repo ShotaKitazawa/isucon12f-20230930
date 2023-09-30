@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/labstack/echo/v4"
 	"golang.org/x/crypto/bcrypt"
@@ -15,18 +16,31 @@ import (
 // //////////////////////////////////////
 // admin
 
+var (
+	cacheAdminSession      *Session
+	cacheAdminSessionMutex sync.RWMutex
+)
+
 // adminSessionCheckMiddleware 管理者ツール向けのセッション確認middleware
 func (h *Handler) adminSessionCheckMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		sessID := c.Request().Header.Get("x-session")
 
-		adminSession := new(Session)
-		query := "SELECT * FROM admin_sessions WHERE session_id=? AND deleted_at IS NULL"
-		if err := h.DB.Get(adminSession, query, sessID); err != nil {
-			if err == sql.ErrNoRows {
-				return errorResponse(c, http.StatusUnauthorized, ErrUnauthorized)
+		adminSession := Session{}
+		cacheAdminSessionMutex.RLock()
+		if cacheAdminSession != nil {
+			adminSession = *cacheAdminSession
+		}
+		cacheAdminSessionMutex.RUnlock()
+
+		if adminSession.SessionID != sessID {
+			query := "SELECT * FROM admin_sessions WHERE session_id=? AND deleted_at IS NULL"
+			if err := h.DB.Get(&adminSession, query, sessID); err != nil {
+				if err == sql.ErrNoRows {
+					return errorResponse(c, http.StatusUnauthorized, ErrUnauthorized)
+				}
+				return errorResponse(c, http.StatusInternalServerError, err)
 			}
-			return errorResponse(c, http.StatusInternalServerError, err)
 		}
 
 		requestAt, err := getRequestTime(c)
@@ -35,7 +49,7 @@ func (h *Handler) adminSessionCheckMiddleware(next echo.HandlerFunc) echo.Handle
 		}
 
 		if adminSession.ExpiredAt < requestAt {
-			query = "UPDATE admin_sessions SET deleted_at=? WHERE session_id=?"
+			query := "UPDATE admin_sessions SET deleted_at=? WHERE session_id=?"
 			if _, err = h.DB.Exec(query, requestAt, sessID); err != nil {
 				return errorResponse(c, http.StatusInternalServerError, err)
 			}
@@ -641,6 +655,7 @@ type AdminBanUserResponse struct {
 }
 
 // hashPassword パスワードをハッシュ化する
+//
 //nolint:deadcode,unused
 func hashPassword(pw string) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)

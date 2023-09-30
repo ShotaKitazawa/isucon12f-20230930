@@ -187,6 +187,11 @@ func (h *Handler) apiMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
+var (
+	cacheSession      map[int64]*Session = make(map[int64]*Session) //key: userID
+	cacheSessionMutex sync.RWMutex
+)
+
 // checkSessionMiddleware セッションが有効か確認するmiddleware
 func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -206,12 +211,18 @@ func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 		}
 
 		userSession := new(Session)
-		query := "SELECT * FROM user_sessions WHERE session_id=? AND deleted_at IS NULL"
-		if err := h.DB.Get(userSession, query, sessID); err != nil {
-			if err == sql.ErrNoRows {
-				return errorResponse(c, http.StatusUnauthorized, ErrUnauthorized)
+
+		cacheSessionMutex.RLock()
+		userSession, ok := cacheSession[userID]
+		cacheSessionMutex.RUnlock()
+		if !ok || sessID != userSession.SessionID {
+			query := "SELECT * FROM user_sessions WHERE session_id=? AND deleted_at IS NULL"
+			if err := h.DB.Get(userSession, query, sessID); err != nil {
+				if err == sql.ErrNoRows {
+					return errorResponse(c, http.StatusUnauthorized, ErrUnauthorized)
+				}
+				return errorResponse(c, http.StatusInternalServerError, err)
 			}
-			return errorResponse(c, http.StatusInternalServerError, err)
 		}
 
 		if userSession.UserID != userID {
@@ -220,10 +231,13 @@ func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 
 		// 期限切れチェック
 		if userSession.ExpiredAt < requestAt {
-			query = "UPDATE user_sessions SET deleted_at=? WHERE session_id=?"
+			query := "UPDATE user_sessions SET deleted_at=? WHERE session_id=?"
 			if _, err = h.DB.Exec(query, requestAt, sessID); err != nil {
 				return errorResponse(c, http.StatusInternalServerError, err)
 			}
+			cacheSessionMutex.Lock()
+			delete(cacheSession, userID)
+			cacheSessionMutex.Unlock()
 			return errorResponse(c, http.StatusUnauthorized, ErrExpiredSession)
 		}
 
@@ -783,6 +797,9 @@ func (h *Handler) createUser(c echo.Context) error {
 	if _, err = tx.Exec(query, sess.ID, sess.UserID, sess.SessionID, sess.CreatedAt, sess.UpdatedAt, sess.ExpiredAt); err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
+	cacheSessionMutex.Lock()
+	cacheSession[user.ID] = sess
+	cacheSessionMutex.Unlock()
 
 	err = tx.Commit()
 	if err != nil {
@@ -855,10 +872,12 @@ func (h *Handler) login(c echo.Context) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
+	// 古いのを消す
 	query = "UPDATE user_sessions SET deleted_at=? WHERE user_id=? AND deleted_at IS NULL"
 	if _, err = tx.Exec(query, requestAt, req.UserID); err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
+
 	sID, err := h.generateID()
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
@@ -917,6 +936,11 @@ func (h *Handler) login(c echo.Context) error {
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
+
+	// tx が終了したらキャッシュを更新 :kami: :god:
+	cacheSessionMutex.Lock()
+	cacheSession[req.UserID] = sess
+	cacheSessionMutex.Unlock()
 
 	return successResponse(c, &LoginResponse{
 		ViewerID:         req.ViewerID,
