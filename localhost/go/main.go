@@ -278,19 +278,15 @@ func (h *Handler) checkViewerID(userID int64, viewerID string) error {
 
 // checkBan BANされているユーザでかを確認する
 func (h *Handler) checkBan(userID int64) (bool, error) {
-	cacheBanUsersMutex.RLock()
-	defer cacheBanUsersMutex.RUnlock()
-
-	_, banned := cacheBanUsers[int(userID)]
-	return banned, nil
-	//banUser := new(UserBan)
-	//query := "SELECT * FROM user_bans WHERE user_id=?"
-	//if err := h.DB.Get(banUser, query, userID); err != nil {
-	//	if err == sql.ErrNoRows {
-	//		return false, nil
-	//	}
-	//	return false, err
-	//}
+	banUser := new(UserBan)
+	query := "SELECT * FROM user_bans WHERE user_id=?"
+	if err := h.DB.Get(banUser, query, userID); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // getRequestTime リクエストを受けた時間をコンテキストからunix timeで取得する
@@ -442,18 +438,22 @@ func (h *Handler) obtainPresent(tx *sqlx.Tx, userID int64, requestAt int64) ([]*
 	}
 
 	obtainPresents := make([]*UserPresent, 0)
+	presentAllHistory := make([]*UserPresentAllReceivedHistory, 0)
+	allReceivedHistoryQuery := "SELECT * FROM user_present_all_received_history WHERE user_id=?"
+	if err := tx.Select(&presentAllHistory, allReceivedHistoryQuery, userID); err != nil {
+		return nil, err
+	}
 	for _, np := range normalPresents {
-		received := new(UserPresentAllReceivedHistory)
-		query = "SELECT * FROM user_present_all_received_history WHERE user_id=? AND present_all_id=?"
-		err := tx.Get(received, query, userID, np.ID)
-		if err == nil {
-			// プレゼント配布済
+		isReceived := false
+		for _, pah := range presentAllHistory {
+			if np.ID == pah.PresentAllID {
+				isReceived = true
+				break
+			}
+		}
+		if isReceived {
 			continue
 		}
-		if err != sql.ErrNoRows {
-			return nil, err
-		}
-
 		pID, err := h.generateID()
 		if err != nil {
 			return nil, err
@@ -501,7 +501,6 @@ func (h *Handler) obtainPresent(tx *sqlx.Tx, userID int64, requestAt int64) ([]*
 
 		obtainPresents = append(obtainPresents, up)
 	}
-
 	return obtainPresents, nil
 }
 
@@ -629,18 +628,6 @@ func initialize(c echo.Context) error {
 		c.Logger().Errorf("Failed to initialize %s: %v", string(out), err)
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
-
-	// restore BanUsers to memory
-	banUsers := new([]UserBan)
-	query := "SELECT * FROM user_bans"
-	if err := dbx.Select(banUsers, query); err != nil {
-		return err
-	}
-	cacheBanUsersMutex.Lock()
-	for _, bu := range *banUsers {
-		cacheBanUsers[int(bu.ID)] = struct{}{}
-	}
-	cacheBanUsersMutex.Unlock()
 
 	return successResponse(c, &InitializeResponse{
 		Language: "go",
@@ -823,11 +810,6 @@ type CreateUserResponse struct {
 	CreatedAt        int64            `json:"createdAt"`
 	UpdatedResources *UpdatedResource `json:"updatedResources"`
 }
-
-var (
-	cacheBanUsers      map[int]struct{} = make(map[int]struct{})
-	cacheBanUsersMutex sync.RWMutex
-)
 
 // login ログイン
 // POST /login
