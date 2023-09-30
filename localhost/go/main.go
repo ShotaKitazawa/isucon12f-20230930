@@ -16,6 +16,7 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gomodule/redigo/redis"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	"github.com/labstack/echo/v4"
@@ -38,6 +39,8 @@ var (
 	ErrUnauthorized             error = fmt.Errorf("unauthorized user")
 	ErrForbidden                error = fmt.Errorf("forbidden")
 	ErrGeneratePassword         error = fmt.Errorf("failed to password hash") //nolint:deadcode
+
+	pool *redis.Pool
 )
 
 const (
@@ -61,6 +64,14 @@ func init() {
 		panic(err)
 	}
 	lastInsertID = int64(100000000000*magicNumber + 1)
+
+	// init redis client
+	pool = &redis.Pool{
+		MaxIdle:     3,
+		MaxActive:   0,
+		IdleTimeout: 240 * time.Second,
+		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", "192.168.0.12:6379") },
+	}
 }
 
 func main() {
@@ -334,15 +345,13 @@ func (h *Handler) checkViewerID(userID int64, viewerID string) error {
 
 // checkBan BANされているユーザでかを確認する
 func (h *Handler) checkBan(userID int64) (bool, error) {
-	banUser := new(UserBan)
-	query := "SELECT * FROM user_bans WHERE user_id=?"
-	if err := h.DB.Get(banUser, query, userID); err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
+	conn := pool.Get()
+	defer conn.Close()
+	banned, err := redis.Bool(conn.Do("EXISTS", fmt.Sprintf("banUsers_%d", userID)))
+	if err != nil {
 		return false, err
 	}
-	return true, nil
+	return banned, nil
 }
 
 // getRequestTime リクエストを受けた時間をコンテキストからunix timeで取得する
