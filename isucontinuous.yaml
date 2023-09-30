@@ -25,7 +25,7 @@ hosts:
       target: /etc/mysql
     - src: go
       target: /home/isucon/webapp/go
-      compile: /home/isucon/local/golang/bin/go build .
+      compile: /home/isucon/local/golang/bin/go build -o isuconquest .
   profiling: &profiling
     command: >-
       PPROF_TMPDIR=/pprof/{{.Git.Revision}} /home/isucon/local/golang/bin/go tool pprof /home/isucon/webapp/go/isuconquest http://localhost:6060/debug/pprof/profile?seconds=90
