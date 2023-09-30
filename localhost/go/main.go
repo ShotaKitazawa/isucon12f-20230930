@@ -77,7 +77,11 @@ func main() {
 	if err != nil {
 		e.Logger.Fatalf("failed to connect to all db: %v", err)
 	}
-	defer dbxList.Close()
+	defer func() {
+		for _, dbx := range dbxList {
+			dbx.Close()
+		}
+	}()
 
 	e.Server.Addr = fmt.Sprintf(":%v", "8080")
 	h := &Handler{
@@ -162,6 +166,7 @@ func connectAllDB(batch bool) ([]*sqlx.DB, error) {
 		if err != nil {
 			return nil, err
 		}
+		dbxList = append(dbxList, dbx)
 	}
 	return dbxList, nil
 }

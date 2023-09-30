@@ -230,12 +230,14 @@ type AdminListMasterResponse struct {
 // adminUpdateMaster マスタデータ更新
 // PUT /admin/master
 func (h *Handler) adminUpdateMaster(c echo.Context) error {
+	var mu sync.Mutex
 	eg := errgroup.Group{}
+	activeMaster := new(VersionMaster)
 	for i := range h.DBList {
 		i := i
 		dbx := h.DBList[i]
 		eg.Go(func() error {
-			tx, err := h.DB.Beginx()
+			tx, err := dbx.Beginx()
 			if err != nil {
 				return errorResponse(c, http.StatusInternalServerError, err)
 			}
@@ -491,10 +493,11 @@ func (h *Handler) adminUpdateMaster(c echo.Context) error {
 				c.Logger().Debug("Skip Update Master: loginBonusRewardMaster")
 			}
 
-			activeMaster := new(VersionMaster)
+			mu.Lock()
 			if err = tx.Get(activeMaster, "SELECT * FROM version_masters WHERE status=1"); err != nil {
 				return errorResponse(c, http.StatusInternalServerError, err)
 			}
+			mu.Unlock()
 
 			err = tx.Commit()
 			if err != nil {
