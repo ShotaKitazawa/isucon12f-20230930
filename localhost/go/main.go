@@ -59,6 +59,7 @@ type Handler struct {
 	db02     *sqlx.DB
 	db03     *sqlx.DB
 	db04     *sqlx.DB
+	DBList   []*sqlx.DB
 }
 
 func init() {
@@ -122,6 +123,16 @@ func main() {
 	}
 	defer dbCompetition04.Close()
 
+	dbxList, err := connectAllDB(false)
+	if err != nil {
+		e.Logger.Fatalf("failed to connect to all db: %v", err)
+	}
+	defer func() {
+		for _, dbx := range dbxList {
+			dbx.Close()
+		}
+	}()
+
 	e.Server.Addr = fmt.Sprintf(":%v", "8080")
 	h := &Handler{
 		localDB:  localDbx,
@@ -130,6 +141,7 @@ func main() {
 		db02:     dbCompetition02,
 		db03:     dbCompetition03,
 		db04:     dbCompetition04,
+		DBList:   dbxList,
 	}
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{}))
@@ -185,6 +197,35 @@ func connectDB(host string, batch bool) (*sqlx.DB, error) {
 		return nil, err
 	}
 	return dbx, nil
+}
+
+func connectAllDB(batch bool) ([]*sqlx.DB, error) {
+	hosts := []string{
+		"192.168.0.11",
+		"192.168.0.12",
+		"192.168.0.13",
+		"192.168.0.14",
+	}
+	dbxList := make([]*sqlx.DB, 0, len(hosts))
+	for _, host := range hosts {
+		dsn := fmt.Sprintf(
+			"%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=true&loc=%s&multiStatements=%t&interpolateParams=true",
+			getEnv("ISUCON_DB_USER", "isucon"),
+			getEnv("ISUCON_DB_PASSWORD", "isucon"),
+			//getEnv("ISUCON_DB_HOST", host),
+			host,
+			getEnv("ISUCON_DB_PORT", "3306"),
+			getEnv("ISUCON_DB_NAME", "isucon"),
+			"Asia%2FTokyo",
+			batch,
+		)
+		dbx, err := sqlx.Open("mysql", dsn)
+		if err != nil {
+			return nil, err
+		}
+		dbxList = append(dbxList, dbx)
+	}
+	return dbxList, nil
 }
 
 // adminMiddleware 管理者ツール向けのmiddleware
