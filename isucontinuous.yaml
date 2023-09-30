@@ -32,7 +32,7 @@ hosts:
     #command: >-
     #  PPROF_TMPDIR=/pprof/{{.Git.Revision}} /home/isucon/local/go/bin/go tool pprof /home/isucon/webapp/go/isucondition http://localhost:6060/debug/fgprof?seconds=90
   after_bench: &after_bench
-    #slack_channel_id: ""
+    slack_channel_id: "C6FC55B6W"
     target: /profile/{{.Git.Revision}}/
     command: >-
       mkdir -p /profile/{{.Git.Revision}};
