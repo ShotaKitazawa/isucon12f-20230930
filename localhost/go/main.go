@@ -347,32 +347,6 @@ func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 }
 
 // checkOneTimeToken ワンタイムトークンの確認用middleware
-func (h *Handler) checkOneTimeToken(token string, tokenType int, requestAt int64) error {
-	tk := new(UserOneTimeToken)
-	query := "SELECT * FROM user_one_time_tokens WHERE token=? AND token_type=? AND deleted_at IS NULL"
-	if err := h.localDB.Get(tk, query, token, tokenType); err != nil {
-		if err == sql.ErrNoRows {
-			return ErrInvalidToken
-		}
-		return err
-	}
-
-	if tk.ExpiredAt < requestAt {
-		query = "UPDATE user_one_time_tokens SET deleted_at=? WHERE token=?"
-		if _, err := h.localDB.Exec(query, requestAt, token); err != nil {
-			return err
-		}
-		return ErrInvalidToken
-	}
-
-	// 使ったトークンは失効する
-	query = "UPDATE user_one_time_tokens SET deleted_at=? WHERE token=?"
-	if _, err := h.localDB.Exec(query, requestAt, token); err != nil {
-		return err
-	}
-
-	return nil
-}
 
 // checkOneTimeToken ワンタイムトークンの確認用middleware
 func (h *Handler) checkOneTimeTokenCache(token string, tokenType int, requestAt int64) error {
