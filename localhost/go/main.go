@@ -254,7 +254,7 @@ func (h *Handler) apiMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		// 有効なマスタデータか確認
 		query := "SELECT * FROM version_masters WHERE status=1"
 		masterVersion := new(VersionMaster)
-		if err := h.sharedDB.Get(masterVersion, query); err != nil {
+		if err := h.localDB.Get(masterVersion, query); err != nil {
 			if err == sql.ErrNoRows {
 				return errorResponse(c, http.StatusNotFound, fmt.Errorf("active master version is not found"))
 			}
@@ -1224,7 +1224,31 @@ func (h *Handler) login(c echo.Context) error {
 		})
 	}
 
-	user, loginBonuses, presents, err := h.loginProcess(tx, req.UserID, requestAt)
+	var txForSpecifiedDB *sqlx.Tx
+	switch req.UserID % 10 {
+	case 0, 1, 2:
+		txForSpecifiedDB = tx
+	case 3, 4, 5:
+		txForSpecifiedDB, err = h.db02.Beginx()
+		if err != nil {
+			return errorResponse(c, http.StatusInternalServerError, err)
+		}
+		defer txForSpecifiedDB.Rollback() //nolint:errcheck
+	case 6, 7:
+		txForSpecifiedDB, err = h.db03.Beginx()
+		if err != nil {
+			return errorResponse(c, http.StatusInternalServerError, err)
+		}
+		defer txForSpecifiedDB.Rollback() //nolint:errcheck
+	case 8, 9:
+		txForSpecifiedDB, err = h.db04.Beginx()
+		if err != nil {
+			return errorResponse(c, http.StatusInternalServerError, err)
+		}
+		defer txForSpecifiedDB.Rollback() //nolint:errcheck
+	}
+
+	user, loginBonuses, presents, err := h.loginProcess(txForSpecifiedDB, req.UserID, requestAt)
 	if err != nil {
 		if err == ErrUserNotFound || err == ErrItemNotFound || err == ErrLoginBonusRewardNotFound {
 			return errorResponse(c, http.StatusNotFound, err)
@@ -1238,6 +1262,12 @@ func (h *Handler) login(c echo.Context) error {
 	err = tx.Commit()
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
+	}
+	if req.UserID%10 >= 3 {
+		err = txForSpecifiedDB.Commit()
+		if err != nil {
+			return errorResponse(c, http.StatusInternalServerError, err)
+		}
 	}
 
 	// tx が終了したらキャッシュを更新 :kami: :god:
