@@ -50,18 +50,18 @@ hosts:
   key: *key
   deploy: *deploy
   profiling: *profiling
-  after_bench: {}
+  after_bench: *after_bench
 
 - host: 192.168.0.13
   user: *user
   key: *key
   deploy: *deploy
   profiling: *profiling
-  after_bench: {}
+  after_bench: *after_bench
 
 - host: 192.168.0.14
   user: *user
   key: *key
   deploy: *deploy
   profiling: *profiling
-  after_bench: {}
+  after_bench: *after_bench
