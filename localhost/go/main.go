@@ -1145,9 +1145,21 @@ func (h *Handler) login(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, ErrGetRequestTime)
 	}
 
+	var dbx *sqlx.DB
+	switch req.UserID % 10 {
+	case 0, 1, 2:
+		dbx = h.db01
+	case 3, 4, 5:
+		dbx = h.db02
+	case 6, 7:
+		dbx = h.db03
+	case 8, 9:
+		dbx = h.db04
+	}
+
 	user := new(User)
 	query := "SELECT * FROM users WHERE id=?"
-	if err := h.localDB.Get(user, query, req.UserID); err != nil {
+	if err := dbx.Get(user, query, req.UserID); err != nil {
 		if err == sql.ErrNoRows {
 			return errorResponse(c, http.StatusNotFound, ErrUserNotFound)
 		}
