@@ -55,9 +55,11 @@ const (
 func (h Handler) getSpecifiedDBx(userID int64) *sqlx.DB {
 	var dbx *sqlx.DB
 	switch userID % 10 {
-	case 0, 1, 2:
+	case 0:
+		dbx = h.db01
+	case 1, 2, 3:
 		dbx = h.db02
-	case 3, 4, 5, 6:
+	case 4, 5, 6:
 		dbx = h.db03
 	case 7, 8, 9:
 		dbx = h.db04
@@ -1229,11 +1231,16 @@ func (h *Handler) login(c echo.Context) error {
 		})
 	}
 
-	txForSpecifiedDB, err := h.getSpecifiedDBx(req.UserID).Beginx()
-	if err != nil {
-		return errorResponse(c, http.StatusInternalServerError, err)
+	var txForSpecifiedDB *sqlx.Tx
+	if req.UserID == 0 {
+		txForSpecifiedDB = tx
+	} else {
+		txForSpecifiedDB, err = h.getSpecifiedDBx(req.UserID).Beginx()
+		if err != nil {
+			return errorResponse(c, http.StatusInternalServerError, err)
+		}
+		defer txForSpecifiedDB.Rollback()
 	}
-	defer txForSpecifiedDB.Rollback()
 
 	user, loginBonuses, presents, err := h.loginProcess(txForSpecifiedDB, req.UserID, requestAt)
 	if err != nil {
@@ -1250,7 +1257,7 @@ func (h *Handler) login(c echo.Context) error {
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
-	if req.UserID%10 >= 3 {
+	if req.UserID != 0 {
 		err = txForSpecifiedDB.Commit()
 		if err != nil {
 			return errorResponse(c, http.StatusInternalServerError, err)
