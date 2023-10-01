@@ -254,7 +254,7 @@ func (h *Handler) apiMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		// 有効なマスタデータか確認
 		query := "SELECT * FROM version_masters WHERE status=1"
 		masterVersion := new(VersionMaster)
-		if err := h.localDB.Get(masterVersion, query); err != nil {
+		if err := h.sharedDB.Get(masterVersion, query); err != nil {
 			if err == sql.ErrNoRows {
 				return errorResponse(c, http.StatusNotFound, fmt.Errorf("active master version is not found"))
 			}
@@ -302,18 +302,6 @@ func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 			return errorResponse(c, http.StatusBadRequest, err)
 		}
 
-		var dbx *sqlx.DB
-		switch userID % 10 {
-		case 0, 1, 2:
-			dbx = h.db01
-		case 3, 4, 5:
-			dbx = h.db02
-		case 6, 7:
-			dbx = h.db03
-		case 8, 9:
-			dbx = h.db04
-		}
-
 		requestAt, err := getRequestTime(c)
 		if err != nil {
 			return errorResponse(c, http.StatusInternalServerError, ErrGetRequestTime)
@@ -327,7 +315,7 @@ func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 		if !ok || sessID != userSession.SessionID {
 			userSession = new(Session)
 			query := "SELECT * FROM user_sessions WHERE session_id=? AND deleted_at IS NULL"
-			if err := dbx.Get(userSession, query, sessID); err != nil {
+			if err := h.sharedDB.Get(userSession, query, sessID); err != nil {
 				if err == sql.ErrNoRows {
 					return errorResponse(c, http.StatusUnauthorized, ErrUnauthorized)
 				}
@@ -342,7 +330,7 @@ func (h *Handler) checkSessionMiddleware(next echo.HandlerFunc) echo.HandlerFunc
 		// 期限切れチェック
 		if userSession.ExpiredAt < requestAt {
 			query := "UPDATE user_sessions SET deleted_at=? WHERE session_id=?"
-			if _, err = dbx.Exec(query, requestAt, sessID); err != nil {
+			if _, err = h.sharedDB.Exec(query, requestAt, sessID); err != nil {
 				return errorResponse(c, http.StatusInternalServerError, err)
 			}
 			cacheSessionMutex.Lock()
@@ -1096,6 +1084,11 @@ func (h *Handler) createUser(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
 
+	err = tx.Commit()
+	if err != nil {
+		return errorResponse(c, http.StatusInternalServerError, err)
+	}
+
 	sessID, err := generateUUID()
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
@@ -1109,15 +1102,9 @@ func (h *Handler) createUser(c echo.Context) error {
 		ExpiredAt: requestAt + 86400,
 	}
 	query = "INSERT INTO user_sessions(id, user_id, session_id, created_at, updated_at, expired_at) VALUES (?, ?, ?, ?, ?, ?)"
-	if _, err = tx.Exec(query, sess.ID, sess.UserID, sess.SessionID, sess.CreatedAt, sess.UpdatedAt, sess.ExpiredAt); err != nil {
+	if _, err = h.sharedDB.Exec(query, sess.ID, sess.UserID, sess.SessionID, sess.CreatedAt, sess.UpdatedAt, sess.ExpiredAt); err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
-
-	err = tx.Commit()
-	if err != nil {
-		return errorResponse(c, http.StatusInternalServerError, err)
-	}
-
 	cacheSessionMutex.Lock()
 	cacheSession[user.ID] = sess
 	cacheSessionMutex.Unlock()
@@ -1158,21 +1145,9 @@ func (h *Handler) login(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, ErrGetRequestTime)
 	}
 
-	var dbx *sqlx.DB
-	switch req.UserID % 10 {
-	case 0, 1, 2:
-		dbx = h.db01
-	case 3, 4, 5:
-		dbx = h.db02
-	case 6, 7:
-		dbx = h.db03
-	case 8, 9:
-		dbx = h.db04
-	}
-
 	user := new(User)
 	query := "SELECT * FROM users WHERE id=?"
-	if err := dbx.Get(user, query, req.UserID); err != nil {
+	if err := h.localDB.Get(user, query, req.UserID); err != nil {
 		if err == sql.ErrNoRows {
 			return errorResponse(c, http.StatusNotFound, ErrUserNotFound)
 		}
@@ -1194,7 +1169,7 @@ func (h *Handler) login(c echo.Context) error {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
 
-	tx, err := dbx.Beginx()
+	tx, err := h.sharedDB.Beginx()
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
