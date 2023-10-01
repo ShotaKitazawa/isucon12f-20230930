@@ -1250,11 +1250,9 @@ func (h *Handler) login(c echo.Context) error {
 	if err != nil {
 		return errorResponse(c, http.StatusInternalServerError, err)
 	}
-	if req.UserID%10 >= 3 {
-		err = txForSpecifiedDB.Commit()
-		if err != nil {
-			return errorResponse(c, http.StatusInternalServerError, err)
-		}
+	err = txForSpecifiedDB.Commit()
+	if err != nil {
+		return errorResponse(c, http.StatusInternalServerError, err)
 	}
 
 	// tx が終了したらキャッシュを更新 :kami: :god:
